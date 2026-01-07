@@ -1,0 +1,7 @@
+[
+    {
+        "fname": "spot-price-relay/spot-price-relay.js",
+        "title": "Spot Price Relay Control",
+        "description": "This script controls relays based on current spot prices from the Finnish electricity market."
+    }
+]
