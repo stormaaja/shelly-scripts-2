@@ -49,15 +49,15 @@ function downloadCurrentSpotPrice() {
         },
         function (response, errorCode, errorMessage) {
             if (errorCode !== 0) {
-                handleDownloadError("HTTP request failed: " + errorMessage);
+                handleDownloadError("HTTP-kutsu epäonnistui: " + errorMessage);
                 return;
             }
 
             if (response.code !== 200) {
                 if (response.code === 429) {
-                    handleDownloadError("API rate limit exceeded (429)");
+                    handleDownloadError("Liian monta rajapintakutsua (429)");
                 } else {
-                    handleDownloadError("API returned status " + response.code);
+                    handleDownloadError("Rajapinta palautti statuksen " + response.code);
                 }
                 return;
             }
@@ -65,7 +65,7 @@ function downloadCurrentSpotPrice() {
             try {
                 const data = JSON.parse(response.body);
                 if (!data || typeof data.PriceWithTax === 'undefined') {
-                    handleDownloadError("Invalid data format or missing PriceWithTax");
+                    handleDownloadError("Virheellistä tai puutteellista dataa (verollinen hinta puuttuu)");
                     return;
                 }
 
@@ -86,7 +86,7 @@ function downloadCurrentSpotPrice() {
                 scheduleNextDownload();
 
             } catch (e) {
-                handleDownloadError("JSON parsing failed: " + e.message);
+                handleDownloadError("Datan parsinta epäonnistui: " + e.message);
             }
         }
     );
