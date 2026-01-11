@@ -130,7 +130,7 @@ function scheduleNextDownload() {
     const currentMs = now.getTime();
 
     const msSinceHour = currentMs % (60 * 60 * 1000);
-    const delayMs = fifteenMinutesMs - (msSinceHour % fifteenMinutesMs);
+    const delayMs = fifteenMinutesMs - (msSinceHour % fifteenMinutesMs) + 2000; // Add 2 seconds buffer
 
     print("Scheduled next spot price download for + " + delayMs / 1000 / 60 + " minutes");
     Timer.set(delayMs, false, downloadCurrentSpotPrice);
