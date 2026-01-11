@@ -50,7 +50,7 @@ function downloadCurrentSpotPrice() {
         "HTTP.GET",
         {
             url: spotPriceApi,
-            timeout: 10000
+            timeout: 10
         },
         function (response, errorCode, errorMessage) {
             if (errorCode !== 0) {
