@@ -3,5 +3,10 @@
         "fname": "spot-price-relay/spot-price-relay.js",
         "title": "Spot Price Relay Control",
         "description": "This script controls relays based on current spot prices from the Finnish electricity market."
+    },
+    {
+        "fname": "spot-quick-code-relay/spot-quick-code-relay.js",
+        "title": "Spot Quick Code Relay Control",
+        "description": "This script controls relays based on quick codes from the https://spot-hinta.fi service."
     }
 ]
