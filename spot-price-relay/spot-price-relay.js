@@ -1,11 +1,11 @@
 const relayConfigs = [
     {
-        limitPrice: 0.01999999,
+        limitPrice: 0.02,
         onCondition: "below"
     },
     {
         limitPrice: 0.02,
-        onCondition: "above"
+        onCondition: "above-or-equal"
     }
 ];
 
@@ -143,8 +143,8 @@ function calculateRelayState(config, currentPrice) {
 
     if (config.onCondition === "below") {
         return currentPrice < config.limitPrice;
-    } else if (config.onCondition === "above") {
-        return currentPrice > config.limitPrice;
+    } else if (config.onCondition === "above-or-equal") {
+        return currentPrice >= config.limitPrice;
     }
 
     return false;
