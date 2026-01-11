@@ -23,23 +23,6 @@ const retryDelaySeconds = 60;
 const maxConsecutiveFailures = 5;
 let downloadErrorCount = 0;
 
-const printBuffer = [];
-
-function flushPrintBuffer() {
-    if (printBuffer.length > 0) {
-        const messages = printBuffer.join("\n");
-        printBuffer.length = 0;
-        print(messages);
-    }
-}
-
-function printb(msg) {
-    printBuffer.push(msg);
-    if (printBuffer.length >= 10) {
-        flushPrintBuffer();
-    }
-}
-
 function sendNotification(title, message) {
     Shelly.call(
         "NotifyEvent",
@@ -55,16 +38,16 @@ function sendNotification(title, message) {
         },
         function (response, errorCode, errorMessage) {
             if (errorCode !== 0) {
-                printb("Failed to send notification: " + errorMessage);
+                print("Failed to send notification: " + errorMessage);
             } else {
-                printb("Notification sent: " + title);
+                print("Notification sent: " + title);
             }
         }
     );
 }
 
 function downloadQuickCodeStatus(quickCode) {
-    printb("Downloading quick code status from API from " + quickCodeApi + "/" + quickCode);
+    print("Downloading quick code status from API from " + quickCodeApi + "/" + quickCode);
     Shelly.call(
         "HTTP.GET",
         {
@@ -73,9 +56,9 @@ function downloadQuickCodeStatus(quickCode) {
             ssl_ca: "*"
         },
         function (response, errorCode, errorMessage) {
-            printb("Quick code status download finished");
+            print("Quick code status download finished");
             if (errorCode !== 0) {
-                printb("HTTP.GET failed with error " + errorCode + " " + errorMessage);
+                print("HTTP.GET failed with error " + errorCode + " " + errorMessage);
                 handleDownloadError("HTTP-kutsu epäonnistui: " + errorMessage);
                 return;
             }
@@ -91,7 +74,7 @@ function downloadQuickCodeStatus(quickCode) {
 
             // Treat 200 (enabled) and 400 (quick code not active) as successful API responses
             downloadErrorCount = 0;
-            printb("Quick code " + quickCode + " status downloaded successfully: " + response.code);
+            print("Quick code " + quickCode + " status downloaded successfully: " + response.code);
             controlRelays(quickCode, response.code === 200);
         }
     );
@@ -103,9 +86,9 @@ function downloadQuickCodeStatuses() {
         relayMap[config.quickCode] = true;
     }
     const quickCodes = Object.keys(relayMap);
-    printb("Downloading statuses for quick codes: " + quickCodes.join(", "));
+    print("Downloading statuses for quick codes: " + quickCodes.join(", "));
     if (quickCodes.length === 0) {
-        printb("No quick codes configured, skipping and stopping script.");
+        print("No quick codes configured, skipping and stopping script.");
         return;
     }
 
@@ -117,7 +100,7 @@ function downloadQuickCodeStatuses() {
 
 function handleDownloadError(errorMessage) {
     downloadErrorCount++;
-    printb("Download error #" + downloadErrorCount + ": " + errorMessage);
+    print("Download error #" + downloadErrorCount + ": " + errorMessage);
 
     if (downloadErrorCount === 3) {
         sendNotification(
@@ -133,12 +116,12 @@ function handleDownloadError(errorMessage) {
     }
 
     if (downloadErrorCount >= maxConsecutiveFailures) {
-        printb("Critical: " + maxConsecutiveFailures + " consecutive download failures! Stopping retries.");
+        print("Critical: " + maxConsecutiveFailures + " consecutive download failures! Stopping retries.");
         return;
     }
 
     const retryDelay = retryDelaySeconds * 1000 * Math.min(downloadErrorCount, 5);
-    printb("Scheduling retry in " + (retryDelay / 1000) + " seconds");
+    print("Scheduling retry in " + (retryDelay / 1000) + " seconds");
     Timer.set(retryDelay, false, downloadQuickCodeStatuses);
 }
 
@@ -150,7 +133,7 @@ function scheduleNextDownload() {
     const msSinceHour = currentMs % (60 * 60 * 1000);
     const delayMs = fifteenMinutesMs - (msSinceHour % fifteenMinutesMs) + 2000; // Add 2 seconds buffer
 
-    printb("Scheduled next quick code status download for + " + delayMs / 1000 / 60 + " minutes");
+    print("Scheduled next quick code status download for + " + delayMs / 1000 / 60 + " minutes");
     Timer.set(delayMs, false, downloadQuickCodeStatuses);
 }
 
@@ -161,7 +144,7 @@ function controlRelays(quickCode, isEnabled) {
             continue;
         }
         const targetState = config.isInverse ? !isEnabled : isEnabled;
-        printb("Relay " + i + " state: " + (targetState ? "ENABLED" : "DISABLED") + " for quick code " + quickCode);
+        print("Relay " + i + " state: " + (targetState ? "ENABLED" : "DISABLED") + " for quick code " + quickCode);
 
         Shelly.call(
             "Switch.set",
@@ -171,13 +154,13 @@ function controlRelays(quickCode, isEnabled) {
             },
             function (response, errorCode, errorMessage, relayIndex) {
                 if (errorCode !== 0) {
-                    printb("Failed to set relay " + relayIndex + " state: " + errorMessage);
+                    print("Failed to set relay " + relayIndex + " state: " + errorMessage);
                     sendNotification(
                         "Releen hallintavirhe",
                         "Releen " + relayIndex + " tilan asettaminen epäonnistui: " + errorMessage
                     );
                 } else {
-                    printb("Relay " + relayIndex + " state set successfully to " + (targetState ? "ON" : "OFF"));
+                    print("Relay " + relayIndex + " state set successfully to " + (targetState ? "ON" : "OFF"));
                 }
             },
             i
@@ -186,17 +169,13 @@ function controlRelays(quickCode, isEnabled) {
 }
 
 function setSafeMode() {
-    printb("Setting relays to safe mode (high price assumption)");
+    print("Setting relays to safe mode (high price assumption)");
     for (const config of relayConfigs) {
         controlRelays(config.quickCode, false);
     }
 }
 
 sendNotification("Laite käynnistyy", "Spot-rele käynnistyy.");
-
-Timer.set(5000, true, function () {
-    flushPrintBuffer();
-})
 
 downloadQuickCodeStatuses();
 
