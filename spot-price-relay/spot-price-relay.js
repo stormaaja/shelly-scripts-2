@@ -1,3 +1,8 @@
+/**
+ * Spot Price Relay Script for Shelly Devices
+ *
+ * Special thanks to https://spot-hinta.fi for providing the API that makes this script possible. Consider supporting them!
+ */
 const relayConfigs = [
     {
         limitPrice: 0.02,
