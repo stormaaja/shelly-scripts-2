@@ -23,7 +23,16 @@ const retryDelaySeconds = 60;
 const maxConsecutiveFailures = 5;
 let downloadErrorCount = 0;
 
+function debug(title, message) {
+    Shelly.emitEvent("Notification", {
+        title: title,
+        message: message,
+        timestamp: Date.now()
+    });
+}
+
 function sendNotification(title, message) {
+    debug(title, message);
     Shelly.call(
         "NotifyEvent",
         {
@@ -38,16 +47,16 @@ function sendNotification(title, message) {
         },
         function (response, errorCode, errorMessage) {
             if (errorCode !== 0) {
-                print("Failed to send notification: " + errorMessage);
+                debug("Failed to send notification: " + errorMessage);
             } else {
-                print("Notification sent: " + title);
+                debug("Notification sent: " + title);
             }
         }
     );
 }
 
 function downloadQuickCodeStatus(quickCode) {
-    print("Downloading quick code status from API from " + quickCodeApi + "/" + quickCode);
+    debug("Downloading quick code status from API from " + quickCodeApi + "/" + quickCode);
     Shelly.call(
         "HTTP.GET",
         {
@@ -56,9 +65,9 @@ function downloadQuickCodeStatus(quickCode) {
             ssl_ca: "*"
         },
         function (response, errorCode, errorMessage) {
-            print("Quick code status download finished");
+            debug("Quick code status download finished");
             if (errorCode !== 0) {
-                print("HTTP.GET failed with error " + errorCode + " " + errorMessage);
+                debug("HTTP.GET failed with error " + errorCode + " " + errorMessage);
                 handleDownloadError("HTTP-kutsu epäonnistui: " + errorMessage);
                 return;
             }
@@ -74,7 +83,7 @@ function downloadQuickCodeStatus(quickCode) {
 
             // Treat 200 (enabled) and 400 (quick code not active) as successful API responses
             downloadErrorCount = 0;
-            print("Quick code " + quickCode + " status downloaded successfully: " + response.code);
+            debug("Quick code " + quickCode + " status downloaded successfully: " + response.code);
             controlRelays(quickCode, response.code === 200);
         }
     );
@@ -86,21 +95,21 @@ function downloadQuickCodeStatuses() {
         relayMap[config.quickCode] = true;
     }
     const quickCodes = Object.keys(relayMap);
-    print("Downloading statuses for quick codes: " + quickCodes.join(", "));
+    debug("Downloading statuses for quick codes: " + quickCodes.join(", "));
     if (quickCodes.length === 0) {
-        print("No quick codes configured, skipping and stopping script.");
+        debug("No quick codes configured, skipping and stopping script.");
         return;
     }
 
     for (const quickCode of quickCodes) {
-        downloadQuickCodeStatus(quickCode);
+        downloadQuickCodeStatus(parseInt(quickCode));
     }
     scheduleNextDownload();
 }
 
 function handleDownloadError(errorMessage) {
     downloadErrorCount++;
-    print("Download error #" + downloadErrorCount + ": " + errorMessage);
+    debug("Download error #" + downloadErrorCount + ": " + errorMessage);
 
     if (downloadErrorCount === 3) {
         sendNotification(
@@ -116,12 +125,12 @@ function handleDownloadError(errorMessage) {
     }
 
     if (downloadErrorCount >= maxConsecutiveFailures) {
-        print("Critical: " + maxConsecutiveFailures + " consecutive download failures! Stopping retries.");
+        debug("Critical: " + maxConsecutiveFailures + " consecutive download failures! Stopping retries.");
         return;
     }
 
     const retryDelay = retryDelaySeconds * 1000 * Math.min(downloadErrorCount, 5);
-    print("Scheduling retry in " + (retryDelay / 1000) + " seconds");
+    debug("Scheduling retry in " + (retryDelay / 1000) + " seconds");
     Timer.set(retryDelay, false, downloadQuickCodeStatuses);
 }
 
@@ -133,18 +142,20 @@ function scheduleNextDownload() {
     const msSinceHour = currentMs % (60 * 60 * 1000);
     const delayMs = fifteenMinutesMs - (msSinceHour % fifteenMinutesMs) + 2000; // Add 2 seconds buffer
 
-    print("Scheduled next quick code status download for + " + delayMs / 1000 / 60 + " minutes");
+    debug("Scheduled next quick code status download for + " + delayMs / 1000 / 60 + " minutes");
     Timer.set(delayMs, false, downloadQuickCodeStatuses);
 }
 
 function controlRelays(quickCode, isEnabled) {
+    debug("Setting relay state for quickCode " + quickCode + ": " + isEnabled);
     for (let i = 0; i < relayConfigs.length; i++) {
         const config = relayConfigs[i];
         if (config.quickCode !== quickCode) {
+            debug("Quickcode doesn't match: " + config.quickCode + " != " + quickCode);
             continue;
         }
         const targetState = config.isInverse ? !isEnabled : isEnabled;
-        print("Relay " + i + " state: " + (targetState ? "ENABLED" : "DISABLED") + " for quick code " + quickCode);
+        debug("Relay " + i + " state: " + (targetState ? "ENABLED" : "DISABLED") + " for quick code " + quickCode);
 
         Shelly.call(
             "Switch.set",
@@ -154,13 +165,13 @@ function controlRelays(quickCode, isEnabled) {
             },
             function (response, errorCode, errorMessage, relayIndex) {
                 if (errorCode !== 0) {
-                    print("Failed to set relay " + relayIndex + " state: " + errorMessage);
+                    debug("Failed to set relay " + relayIndex + " state: " + errorMessage);
                     sendNotification(
                         "Releen hallintavirhe",
                         "Releen " + relayIndex + " tilan asettaminen epäonnistui: " + errorMessage
                     );
                 } else {
-                    print("Relay " + relayIndex + " state set successfully to " + (targetState ? "ON" : "OFF"));
+                    debug("Relay " + relayIndex + " state set successfully to " + (targetState ? "ON" : "OFF"));
                 }
             },
             i
@@ -169,7 +180,7 @@ function controlRelays(quickCode, isEnabled) {
 }
 
 function setSafeMode() {
-    print("Setting relays to safe mode (high price assumption)");
+    debug("Setting relays to safe mode (high price assumption)");
     for (const config of relayConfigs) {
         controlRelays(config.quickCode, false);
     }
