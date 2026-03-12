@@ -20,7 +20,16 @@ const spotPriceApi = "https://api.spot-hinta.fi/JustNow";
 const retryDelaySeconds = 60;
 const maxConsecutiveFailures = 5;
 
+function debug(title, message) {
+    Shelly.emitEvent("Notification", {
+        title: title,
+        message: message,
+        timestamp: Date.now()
+    });
+}
+
 function sendNotification(title, message) {
+    debug(title, message);
     Shelly.call(
         "NotifyEvent",
         {
@@ -35,16 +44,16 @@ function sendNotification(title, message) {
         },
         function (response, errorCode, errorMessage) {
             if (errorCode !== 0) {
-                print("Failed to send notification: " + errorMessage);
+                debug("Failed to send notification: " + errorMessage);
             } else {
-                print("Notification sent: " + title);
+                debug("Notification sent: " + title);
             }
         }
     );
 }
 
 function downloadCurrentSpotPrice() {
-    print("Downloading current spot price from API...");
+    debug("Downloading current spot price from API...");
 
     Shelly.call(
         "HTTP.GET",
@@ -76,9 +85,10 @@ function downloadCurrentSpotPrice() {
 
                 const previousErrorCount = downloadErrorCount;
                 const newPrice = data.PriceWithTax;
+                const priceDate = data.DateTime;
                 downloadErrorCount = 0;
 
-                print("Successfully downloaded current spot price: " + newPrice + " €/kWh");
+                debug("Successfully downloaded current spot price: " + newPrice + " €/kWh at " + priceDate);
 
                 if (previousErrorCount >= 3) {
                     sendNotification(
@@ -99,7 +109,7 @@ function downloadCurrentSpotPrice() {
 
 function handleDownloadError(errorMessage) {
     downloadErrorCount++;
-    print("Download error #" + downloadErrorCount + ": " + errorMessage);
+    debug("Download error #" + downloadErrorCount + ": " + errorMessage);
 
     if (downloadErrorCount === 3) {
         sendNotification(
@@ -115,12 +125,12 @@ function handleDownloadError(errorMessage) {
     }
 
     if (downloadErrorCount >= maxConsecutiveFailures) {
-        print("Critical: " + maxConsecutiveFailures + " consecutive download failures! Stopping retries.");
+        debug("Critical: " + maxConsecutiveFailures + " consecutive download failures! Stopping retries.");
         return;
     }
 
     const retryDelay = retryDelaySeconds * 1000 * Math.min(downloadErrorCount, 5);
-    print("Scheduling retry in " + (retryDelay / 1000) + " seconds");
+    debug("Scheduling retry in " + (retryDelay / 1000) + " seconds");
     Timer.set(retryDelay, false, downloadCurrentSpotPrice);
 }
 
@@ -132,12 +142,12 @@ function scheduleNextDownload() {
     const msSinceHour = currentMs % (60 * 60 * 1000);
     const delayMs = fifteenMinutesMs - (msSinceHour % fifteenMinutesMs) + 2000; // Add 2 seconds buffer
 
-    print("Scheduled next spot price download for + " + delayMs / 1000 / 60 + " minutes");
+    debug("Scheduled next spot price download for + " + delayMs / 1000 / 60 + " minutes");
     Timer.set(delayMs, false, downloadCurrentSpotPrice);
 }
 
 function setSafeMode() {
-    print("Setting relays to safe mode (high price assumption)");
+    debug("Setting relays to safe mode (high price assumption)");
     controlRelays(999.0);
 }
 
@@ -157,17 +167,17 @@ function calculateRelayState(config, currentPrice) {
 
 function controlRelays(currentPrice) {
     if (currentPrice === null) {
-        print("No current spot price data available - skipping relay control");
+        debug("No current spot price data available - skipping relay control");
         return;
     }
 
-    print("Current spot price: " + currentPrice + " €/kWh (with tax)");
+    debug("Current spot price: " + currentPrice + " €/kWh (with tax)");
 
     for (let i = 0; i < relayConfigs.length; i++) {
         const config = relayConfigs[i];
         const targetState = calculateRelayState(config, currentPrice);
 
-        print("Relay " + i + " - Limit: " + config.limitPrice + " €/kWh, Condition: " + config.onCondition + ", Target state: " + (targetState ? "ON" : "OFF"));
+        debug("Relay " + i + " - Limit: " + config.limitPrice + " €/kWh, Condition: " + config.onCondition + ", Target state: " + (targetState ? "ON" : "OFF"));
 
         Shelly.call(
             "Switch.set",
@@ -177,13 +187,13 @@ function controlRelays(currentPrice) {
             },
             function (response, errorCode, errorMessage, relayIndex) {
                 if (errorCode !== 0) {
-                    print("Failed to set relay " + relayIndex + " state: " + errorMessage);
+                    debug("Failed to set relay " + relayIndex + " state: " + errorMessage);
                     sendNotification(
                         "Releen hallintavirhe",
                         "Releen " + relayIndex + " tilan asettaminen epäonnistui: " + errorMessage
                     );
                 } else {
-                    print("Relay " + relayIndex + " state set successfully to " + (targetState ? "ON" : "OFF"));
+                    debug("Relay " + relayIndex + " state set successfully to " + (targetState ? "ON" : "OFF"));
                 }
             },
             i
@@ -191,6 +201,6 @@ function controlRelays(currentPrice) {
     }
 }
 
-print("Initializing spot price downloader...");
+debug("Initializing spot price downloader...");
 sendNotification("Laite käynnistyy", "Spot-hinta-rele käynnistyy.");
 downloadCurrentSpotPrice();
